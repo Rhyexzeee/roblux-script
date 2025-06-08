@@ -1,274 +1,419 @@
--- Rayfield-like UI Library for Roblox
--- Minimal elegant UI focusing on modern aesthetics and developer experience
--- Single Script Version
+-- RayfieldStyleUI.lua
+-- Example Roblox LocalScript: A clean, elegant, minimal UI framework inspired by Rayfield style
+-- Place this LocalScript inside StarterPlayerScripts or StarterGui for demo
 
-local RayfieldLike = {}
-
--- Services
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
--- Constants for colors and styles
-local COLORS = {
-    Background = Color3.fromHex("FFFFFF"),
-    PanelBg = Color3.fromHex("F9FAFB"), -- very light gray for panels
-    TextPrimary = Color3.fromHex("111827"), -- very dark gray for headlines
-    TextSecondary = Color3.fromHex("6B7280"), -- neutral gray body text
-    ButtonBg = Color3.fromHex("1F2937"), -- dark gray/black for buttons
-    ButtonHover = Color3.fromHex("374151"), -- lighter dark gray
-    Accent = Color3.fromHex("2563EB"), -- blue accent for toggles
-    Shadow = Color3.fromRGB(0,0,0),
-}
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
 
-local FONT = Enum.Font.Gotham
-local LARGE_FONT_SIZE = 48
-local MEDIUM_FONT_SIZE = 24
-local BODY_FONT_SIZE = 18
+-- Utility function to create UI elements with safety
+local function create(className, props)
+    local obj = Instance.new(className)
+    for k,v in pairs(props or {}) do
+        if k:sub(1,2) == "On" and typeof(v) == "function" then
+            obj[k:sub(3)] = v
+        else
+            obj[k] = v
+        end
+    end
+    return obj
+end
 
-local EASING = Enum.EasingStyle.Quad
-local TWEEN_TIME = 0.25
-
--- Utility function to create rounded corners with UIStroke / UICorner
-local function createUICorner(parent, radius)
+-- Round corners using UIStroke or UIGradient and ClipsDescendants
+local function addRoundCorners(frame, radius)
+    radius = radius or UDim.new(0, 12)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = radius
-    corner.Parent = parent
+    corner.Name = "UICorner"
+    corner.Parent = frame
     return corner
 end
 
--- Utility function to create a TextButton with styling
-local function createButton(text, parent)
-    local btn = Instance.new("TextButton")
-    btn.BackgroundColor3 = COLORS.ButtonBg
-    btn.TextColor3 = COLORS.Background
-    btn.Font = FONT
-    btn.TextSize = BODY_FONT_SIZE
-    btn.Text = text
-    btn.AutoButtonColor = false
-    btn.Size = UDim2.new(0, 140, 0, 40)
-    btn.AnchorPoint = Vector2.new(0.5, 0.5)
-    btn.BorderSizePixel = 0
-    btn.Parent = parent
-
-    createUICorner(btn, UDim.new(0, 8))
-
-    -- Hover animation
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(TWEEN_TIME, EASING), {BackgroundColor3 = COLORS.ButtonHover}):Play()
-    end)
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(TWEEN_TIME, EASING), {BackgroundColor3 = COLORS.ButtonBg}):Play()
-    end)
-
-    return btn
+-- Add shadow effect
+local function addShadow(frame)
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.AnchorPoint = Vector2.new(0.5,0.5)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://7742500831" -- shadow image (a soft black glow)
+    shadow.ImageColor3 = Color3.fromRGB(0,0,0)
+    shadow.ImageTransparency = 0.7
+    shadow.Size = UDim2.new(1,20,1,20)
+    shadow.Position = UDim2.new(0.5,0,0.5,0)
+    shadow.ZIndex = frame.ZIndex - 1
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(10,10,118,118)
+    shadow.Parent = frame
 end
 
--- Utility function to create a toggle switch
-local function createToggle(title, parent, initialState, callback)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 36)
-    frame.BackgroundTransparency = 1
-    frame.Parent = parent
+-- Toggle button component
+local function createToggle(parent, name, default, callback)
+    local frame = create("Frame", {
+        Parent = parent,
+        Size = UDim2.new(1,0,0,30),
+        BackgroundTransparency = 1,
+        LayoutOrder = 0,
+    })
+    local label = create("TextLabel", {
+        Parent = frame,
+        Text = name or "Toggle",
+        Font = Enum.Font.GothamSemibold,
+        TextSize = 16,
+        TextColor3 = Color3.fromRGB(40,40,40),
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0.75,0,1,0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AnchorPoint = Vector2.new(0,0),
+        Position = UDim2.new(0,10,0,0),
+    })
+    local toggleButton = create("Frame", {
+        Parent = frame,
+        Size = UDim2.new(0, 40, 0, 20),
+        Position = UDim2.new(1, -50, 0.5, 0),
+        AnchorPoint = Vector2.new(1, 0.5),
+        BackgroundColor3 = Color3.fromRGB(220,220,220),
+        BorderSizePixel = 0,
+    })
+    addRoundCorners(toggleButton, UDim.new(0, 10))
 
-    local label = Instance.new("TextLabel")
-    label.Font = FONT
-    label.TextSize = BODY_FONT_SIZE
-    label.TextColor3 = COLORS.TextSecondary
-    label.BackgroundTransparency = 1
-    label.Text = title
-    label.Size = UDim2.new(1, -60, 1, 0)
-    label.Position = UDim2.new(0, 0, 0, 0)
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = frame
+    local toggleCircle = create("Frame", {
+        Parent = toggleButton,
+        Size = UDim2.new(0, 18, 0, 18),
+        Position = default and UDim2.new(1, -18, 0, 1) or UDim2.new(0, 0, 0, 1),
+        BackgroundColor3 = default and Color3.fromRGB(70,130,230) or Color3.fromRGB(160,160,160),
+        BorderSizePixel = 0,
+    })
+    addRoundCorners(toggleCircle, UDim.new(0, 9))
 
-    local toggleButton = Instance.new("Frame")
-    toggleButton.Size = UDim2.new(0, 40, 0, 20)
-    toggleButton.Position = UDim2.new(1, -50, 0.5, 0)
-    toggleButton.AnchorPoint = Vector2.new(0, 0.5)
-    toggleButton.BackgroundColor3 = Color3.fromRGB(209, 213, 219) -- gray background for off
-    toggleButton.BorderSizePixel = 0
-    toggleButton.Parent = frame
-    createUICorner(toggleButton, UDim.new(0, 10))
+    local toggled = default or false
 
-    local circle = Instance.new("Frame")
-    circle.Size = UDim2.new(0, 16, 0, 16)
-    circle.Position = UDim2.new(0, 2, 0.5, 0)
-    circle.AnchorPoint = Vector2.new(0, 0.5)
-    circle.BackgroundColor3 = COLORS.Background
-    circle.Parent = toggleButton
-    createUICorner(circle, UDim.new(0, 8))
-
-    local state = initialState and true or false
-    local function updateVisual()
-        if state then
-            toggleButton.BackgroundColor3 = COLORS.Accent
-            circle:TweenPosition(UDim2.new(1, -18, 0.5, 0), Enum.EasingDirection.Out, EASING, TWEEN_TIME, true)
-            label.TextColor3 = COLORS.TextPrimary
+    local function setToggle(state)
+        toggled = state
+        if toggled then
+            toggleButton.BackgroundColor3 = Color3.fromRGB(180,220,255)
+            toggleCircle:TweenPosition(UDim2.new(1, -18, 0, 1), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.25, true)
+            toggleCircle.BackgroundColor3 = Color3.fromRGB(70,130,230)
         else
-            toggleButton.BackgroundColor3 = Color3.fromRGB(209, 213, 219)
-            circle:TweenPosition(UDim2.new(0, 2, 0.5, 0), Enum.EasingDirection.Out, EASING, TWEEN_TIME, true)
-            label.TextColor3 = COLORS.TextSecondary
+            toggleButton.BackgroundColor3 = Color3.fromRGB(220,220,220)
+            toggleCircle:TweenPosition(UDim2.new(0, 0, 0, 1), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.25, true)
+            toggleCircle.BackgroundColor3 = Color3.fromRGB(160,160,160)
+        end
+        if callback then
+            callback(toggled)
         end
     end
 
-    updateVisual()
-
     toggleButton.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            state = not state
-            updateVisual()
-            if callback then
-                callback(state)
-            end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            setToggle(not toggled)
         end
     end)
 
-    return frame, function() return state end
+    setToggle(toggled)
+
+    return frame, function() return toggled end
 end
 
--- Create a labeled input box
-local function createInputBox(title, placeholder, parent)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 44)
-    frame.BackgroundTransparency = 1
-    frame.Parent = parent
+-- Button component
+local function createButton(parent, text, callback)
+    local button = create("TextButton", {
+        Parent = parent,
+        Text = text or "Button",
+        Font = Enum.Font.GothamBold,
+        TextSize = 18,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        BackgroundColor3 = Color3.fromRGB(40, 40, 40),
+        Size = UDim2.new(1, 0, 0, 40),
+        AutoButtonColor = false,
+        ClipsDescendants = true,
+    })
+    addRoundCorners(button, UDim.new(0, 10))
+    button.ZIndex = parent.ZIndex + 1
 
-    local label = Instance.new("TextLabel")
-    label.Font = FONT
-    label.TextSize = BODY_FONT_SIZE
-    label.TextColor3 = COLORS.TextSecondary
-    label.BackgroundTransparency = 1
-    label.Text = title
-    label.Size = UDim2.new(1, 0, 0, 20)
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = frame
+    button.MouseEnter:Connect(function()
+        button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    end)
 
-    local textBox = Instance.new("TextBox")
-    textBox.Size = UDim2.new(1, 0, 0, 24)
-    textBox.Position = UDim2.new(0, 0, 0, 20)
-    textBox.BackgroundColor3 = COLORS.PanelBg
-    textBox.TextColor3 = COLORS.TextPrimary
-    textBox.Font = FONT
-    textBox.TextSize = BODY_FONT_SIZE
-    textBox.ClearTextOnFocus = false
-    textBox.PlaceholderText = placeholder or ""
-    textBox.Parent = frame
-    textBox.BorderSizePixel = 0
-    createUICorner(textBox, UDim.new(0, 6))
+    button.MouseLeave:Connect(function()
+        button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    end)
+
+    button.MouseButton1Click:Connect(function()
+        if callback then callback() end
+    end)
+
+    return button
+end
+
+-- Textbox component
+local function createTextbox(parent, placeholder)
+    local frame = create("Frame", {
+        Parent = parent,
+        Size = UDim2.new(1, 0, 0, 36),
+        BackgroundColor3 = Color3.fromRGB(245, 245, 245),
+        BorderSizePixel = 0,
+    })
+    addRoundCorners(frame, UDim.new(0, 10))
+
+    local textBox = create("TextBox", {
+        Parent = frame,
+        PlaceholderText = placeholder or "",
+        Font = Enum.Font.Gotham,
+        TextSize = 16,
+        TextColor3 = Color3.fromRGB(60, 60, 60),
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -20, 1, 0),
+        Position = UDim2.new(0, 10, 0, 0),
+        ClearTextOnFocus = false,
+    })
 
     return frame, textBox
 end
 
--- Create a main window container
-function RayfieldLike.CreateWindow(title)
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "RayfieldLikeUI"
-    screenGui.ResetOnSpawn = false
-    screenGui.Parent = game:GetService("CoreGui")
+-- UI Main Container
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "RayfieldStyleUI"
+screenGui.ResetOnSpawn = false
+screenGui.DisplayOrder = 9999
+screenGui.Parent = playerGui
 
-    local mainFrame = Instance.new("Frame")
-    mainFrame.BackgroundColor3 = COLORS.Background
-    mainFrame.Size = UDim2.new(0, 480, 0, 540)
-    mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-    mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    mainFrame.Parent = screenGui
-    createUICorner(mainFrame, UDim.new(0, 16))
-    mainFrame.ClipsDescendants = true
+local mainFrame = create("Frame", {
+    Parent = screenGui,
+    Size = UDim2.new(0, 500, 0, 400),
+    Position = UDim2.new(0.5, -250, 0.5, -200),
+    BackgroundColor3 = Color3.fromRGB(245, 245, 245),
+    BorderSizePixel = 0,
+    ClipsDescendants = true
+})
+addRoundCorners(mainFrame, UDim.new(0, 20))
+addShadow(mainFrame)
 
-    -- Shadow effect (simple)
-    local shadow = Instance.new("ImageLabel")
-    shadow.Size = UDim2.new(1, 16, 1, 16)
-    shadow.Position = UDim2.new(0, -8, 0, -8)
-    shadow.BackgroundTransparency = 1
-    shadow.Image = "rbxassetid://11294975253" -- drop shadow asset id (simple blurred)
-    shadow.ImageColor3 = Color3.new(0,0,0)
-    shadow.ImageTransparency = 0.85
-    shadow.ScaleType = Enum.ScaleType.Slice
-    shadow.SliceCenter = Rect.new(20, 20, 280, 280)
-    shadow.Parent = mainFrame
-    shadow.ZIndex = mainFrame.ZIndex - 1
+-- Header
+local header = create("TextLabel", {
+    Parent = mainFrame,
+    Size = UDim2.new(1, 0, 0, 60),
+    BackgroundTransparency = 1,
+    Text = "Rayfield Style UI",
+    Font = Enum.Font.GothamBold,
+    TextSize = 32,
+    TextColor3 = Color3.fromRGB(30,30,30),
+    TextXAlignment = Enum.TextXAlignment.Center,
+    TextYAlignment = Enum.TextYAlignment.Center,
+    ZIndex = 2,
+})
+header.Position = UDim2.new(0,0,0,0)
 
-    -- Header
-    local header = Instance.new("Frame")
-    header.BackgroundTransparency = 1
-    header.Size = UDim2.new(1, 0, 0, 80)
-    header.Parent = mainFrame
+-- Tab container
+local tabBar = create("Frame", {
+    Parent = mainFrame,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 60),
+    BackgroundTransparency = 1,
+    ClipsDescendants = true,
+})
+local tabs = {}
 
-    local headerText = Instance.new("TextLabel")
-    headerText.Font = FONT
-    headerText.TextSize = LARGE_FONT_SIZE
-    headerText.TextColor3 = COLORS.TextPrimary
-    headerText.Text = title or "RayfieldLike UI"
-    headerText.BackgroundTransparency = 1
-    headerText.Size = UDim2.new(1, -40, 1, 0)
-    headerText.Position = UDim2.new(0, 20, 0, 0)
-    headerText.TextXAlignment = Enum.TextXAlignment.Left
-    headerText.TextYAlignment = Enum.TextYAlignment.Center
-    headerText.RichText = false
-    headerText.Parent = header
+local contentFrame = create("Frame", {
+    Parent = mainFrame,
+    Size = UDim2.new(1, -40, 1, -100),
+    Position = UDim2.new(0,20,0,100),
+    BackgroundTransparency = 1,
+    ClipsDescendants = true,
+})
 
-    -- Container for content elements
-    local content = Instance.new("ScrollingFrame")
-    content.Size = UDim2.new(1, -40, 1, -100)
-    content.Position = UDim2.new(0, 20, 0, 80)
-    content.BackgroundTransparency = 1
-    content.ScrollBarThickness = 6
-    content.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    content.CanvasSize = UDim2.new(0, 0, 0, 0)
-    content.Parent = mainFrame
-    content.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
+-- Tab button creation helper
+local function createTabButton(name)
+    local button = create("TextButton", {
+        Parent = tabBar,
+        Text = name,
+        Font = Enum.Font.GothamSemibold,
+        TextSize = 20,
+        TextColor3 = Color3.fromRGB(120,120,120),
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0, 100, 1, 0),
+        AutoButtonColor = false,
+        ClipsDescendants = true,
+    })
 
-    local layout = Instance.new("UIListLayout")
-    layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Padding = UDim.new(0, 18)
-    layout.Parent = content
+    addRoundCorners(button, UDim.new(0, 8))
 
-    -- Update canvas size on layout change
-    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        content.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
+    button.MouseEnter:Connect(function()
+        if button ~= tabs.activeButton then
+            button.TextColor3 = Color3.fromRGB(80,80,80)
+        end
+    end)
+    button.MouseLeave:Connect(function()
+        if button ~= tabs.activeButton then
+            button.TextColor3 = Color3.fromRGB(120,120,120)
+        end
     end)
 
-    -- Table to hold created elements
-    local elements = {}
-
-    -- API: Add a Button
-    local function AddButton(buttonText, onClick)
-        local btn = createButton(buttonText, content)
-        btn.LayoutOrder = #elements + 1
-        btn.MouseButton1Click:Connect(function()
-            if onClick then pcall(onClick) end
-        end)
-        table.insert(elements, btn)
-        return btn
-    end
-
-    -- API: Add a Toggle
-    local function AddToggle(toggleText, defaultState, onToggle)
-        local toggleFrame, stateFunc = createToggle(toggleText, content, defaultState, onToggle)
-        toggleFrame.LayoutOrder = #elements + 1
-        table.insert(elements, toggleFrame)
-        return stateFunc
-    end
-
-    -- API: Add an InputBox
-    local function AddInputBox(labelText, placeholderText)
-        local inputFrame, textBox = createInputBox(labelText, placeholderText, content)
-        inputFrame.LayoutOrder = #elements + 1
-        table.insert(elements, inputFrame)
-        return textBox
-    end
-
-    -- API table
-    local api = {
-        AddButton = AddButton,
-        AddToggle = AddToggle,
-        AddInputBox = AddInputBox,
-        Destroy = function()
-            screenGui:Destroy()
-        end
-    }
-
-    return api
+    return button
 end
 
-return RayfieldLike
+-- Tab pages table
+local tabPages = {}
+
+-- Select tab function
+local function selectTab(tabName)
+    if tabs.activeButton then
+        tabs.activeButton.TextColor3 = Color3.fromRGB(120,120,120)
+        tabPages[tabs.activeTab].Visible = false
+    end
+    tabs.activeButton = tabs[tabName]
+    tabs.activeTab = tabName
+
+    tabs.activeButton.TextColor3 = Color3.fromRGB(20,20,20)
+    tabPages[tabName].Visible = true
+end
+
+-- Create tabs and pages
+local tabNames = {"Executor", "Settings"}
+
+for i, name in ipairs(tabNames) do
+    local btn = createTabButton(name)
+    btn.Position = UDim2.new(0, (i-1)*110, 0, 0)
+    tabs[name] = btn
+
+    -- Create page frame
+    local page = create("Frame", {
+        Parent = contentFrame,
+        Size = UDim2.new(1,0,1,0),
+        BackgroundColor3 = Color3.fromRGB(255,255,255),
+        ClipsDescendants = true,
+        Visible = false,
+    })
+    addRoundCorners(page, UDim.new(0,16))
+    tabPages[name] = page
+end
+
+-- Executor page UI --
+local executorPage = tabPages["Executor"]
+
+local inputFrame = create("Frame", {
+    Parent = executorPage,
+    Size = UDim2.new(1,-40, 0, 150),
+    Position = UDim2.new(0, 20, 0, 20),
+    BackgroundColor3 = Color3.fromRGB(245, 245, 245),
+    ClipsDescendants = true,
+})
+addRoundCorners(inputFrame, UDim.new(0, 12))
+
+local inputBoxFrame, inputBox = createTextbox(inputFrame, "Enter script here...")
+inputBoxFrame.Size = UDim2.new(1,0,1,0)
+inputBoxFrame.Position = UDim2.new(0,0,0,0)
+inputBox.ClearTextOnFocus = false
+inputBox.MultiLine = true
+inputBox.TextWrapped = true
+inputBox.TextYAlignment = Enum.TextYAlignment.Top
+inputBox.AnchorPoint = Vector2.new(0,0)
+inputBox.Text = ""
+
+-- Output label
+local outputLabel = create("TextLabel", {
+    Parent = executorPage,
+    Size = UDim2.new(1,-40, 0, 150),
+    Position = UDim2.new(0, 20, 0, 200),
+    BackgroundColor3 = Color3.fromRGB(240, 240, 240),
+    TextColor3 = Color3.fromRGB(80, 80, 80),
+    Font = Enum.Font.Gotham,
+    TextSize = 16,
+    TextWrapped = true,
+    TextYAlignment = Enum.TextYAlignment.Top,
+    BorderSizePixel = 0,
+})
+addRoundCorners(outputLabel, UDim.new(0, 12))
+outputLabel.Text = "Output will show here..."
+
+-- Execute Button
+local execBtn = createButton(executorPage, "Execute", function()
+    local scriptText = inputBox.Text
+    if scriptText == "" then
+        outputLabel.Text = "Please enter a script to execute."
+        return
+    end
+    -- Fake "execution" simulation
+    outputLabel.Text = "Executing script...\n\n" .. scriptText .. "\n\nScript executed successfully."
+end)
+execBtn.Size = UDim2.new(0, 120, 0, 45)
+execBtn.Position = UDim2.new(0, 20, 0, 370)
+
+-- Settings page UI --
+local settingsPage = tabPages["Settings"]
+
+local backgroundToggle, getToggled = createToggle(settingsPage, "Dark Mode", false, function(state)
+    if state then
+        mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        header.TextColor3 = Color3.fromRGB(220, 220, 220)
+        for _, tabBtn in pairs(tabs) do
+            if type(tabBtn) == "table" or not tabBtn:IsA then
+                -- Skip unexpected entries
+            elseif tabBtn:IsA("TextButton") and tabBtn ~= tabs.activeButton then
+                tabBtn.TextColor3 = Color3.fromRGB(180,180,180)
+            end
+        end
+        outputLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        inputBox.TextColor3 = Color3.fromRGB(220, 220, 220)
+        inputBoxFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        settingsPage.BackgroundColor3 = Color3.fromRGB(45,45,45)
+    else
+        mainFrame.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+        header.TextColor3 = Color3.fromRGB(30, 30, 30)
+        for _, tabBtn in pairs(tabs) do
+            if type(tabBtn) == "table" or not tabBtn:IsA then
+                -- Skip unexpected entries
+            elseif tabBtn:IsA("TextButton") and tabBtn ~= tabs.activeButton then
+                tabBtn.TextColor3 = Color3.fromRGB(120,120,120)
+            end
+        end
+        outputLabel.TextColor3 = Color3.fromRGB(80, 80, 80)
+        inputBox.TextColor3 = Color3.fromRGB(60, 60, 60)
+        inputBoxFrame.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+        settingsPage.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    end
+end)
+backgroundToggle.Position = UDim2.new(0, 20, 0, 20)
+
+-- Initialize first tab selected
+selectTab("Executor")
+
+-- Allow dragging of the mainFrame
+local dragging, dragInput, dragStart, startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+                                 startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
+-- Return the screenGui for potential further customization if needed
+return screenGui
