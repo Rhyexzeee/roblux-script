@@ -1,7 +1,3 @@
--- RayfieldStyleUI.lua
--- Example Roblox LocalScript: A clean, elegant, minimal UI framework inspired by Rayfield style
--- Place this LocalScript inside StarterPlayerScripts or StarterGui for demo
-
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
